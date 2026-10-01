@@ -1,53 +1,67 @@
-import {
-  AutoProcessor, Gemma4ForConditionalGeneration, TextStreamer, RawImage, env,
-} from "https://cdn.jsdelivr.net/npm/@huggingface/transformers@4.3.0";
-import { MODEL_ID, DTYPE } from "./config.js";
+// Page-side handle to the model. The heavy work runs in model.worker.js so the UI stays responsive.
+import { MODEL_ID, DTYPE, CACHE_KEY } from "./config.js";
 
-let processor, model;
+const worker = new Worker(new URL("./model.worker.js", import.meta.url), { type: "module" });
+const pending = new Map();
+let nextId = 0;
+let loaded = false;
 // GPU power preference the loaded model was created with; fixed until reload.
 export let loadedPower;
 
-export const isLoaded = () => !!model;
+worker.onmessage = ({ data: { id, kind, value } }) => {
+  const request = pending.get(id);
+  if (!request) return;
+  if (kind === "done") {
+    pending.delete(id);
+    request.resolve();
+  } else if (kind === "error") {
+    pending.delete(id);
+    request.reject(new Error(value));
+  } else {
+    request.onEvent?.(kind, value);
+  }
+};
+
+// Fires if the worker script fails to load or throws outside a request.
+worker.onerror = (event) => {
+  for (const request of pending.values()) request.reject(new Error(event.message || "The model worker crashed."));
+  pending.clear();
+};
+
+function call(type, payload, onEvent, transfer = []) {
+  return new Promise((resolve, reject) => {
+    const id = nextId++;
+    pending.set(id, { resolve, reject, onEvent });
+    worker.postMessage({ id, type, payload }, transfer);
+  });
+}
+
+export const isLoaded = () => loaded;
 
 export async function isCached() {
   try {
-    const keys = await (await caches.open(env.cacheKey)).keys();
+    const keys = await (await caches.open(CACHE_KEY)).keys();
     return keys.some((request) => request.url.includes(MODEL_ID) && request.url.includes(`decoder_model_merged_${DTYPE}.onnx_data`));
   } catch { return false; }
 }
 
+export async function deleteCachedModel() {
+  await caches.delete(CACHE_KEY);
+}
+
 // saveToCache false: download into memory only, nothing is written to Cache Storage.
 export async function loadModel({ power, saveToCache = true, onProgress }) {
-  env.useBrowserCache = saveToCache;
-  env.backends.onnx.webgpu.powerPreference = power;
-  const progress_callback = (progress) => {
-    if (progress.status === "progress_total") onProgress?.(progress);
-  };
-  processor = await AutoProcessor.from_pretrained(MODEL_ID);
-  model = await Gemma4ForConditionalGeneration.from_pretrained(MODEL_ID, {
-    dtype: DTYPE, device: "webgpu", progress_callback,
+  await call("load", { power, saveToCache }, (kind, value) => {
+    if (kind === "progress") onProgress?.(value);
   });
+  loaded = true;
   loadedPower = power;
 }
 
-export async function deleteCachedModel() {
-  await caches.delete(env.cacheKey);
-}
-
-// Runs on the main thread; move to a Web Worker if the UI stutters.
 export async function analyze({ canvas, text, preset, onChunk }) {
-  const prompt = processor.apply_chat_template(
-    [{ role: "user", content: [{ type: "image" }, { type: "text", text }] }],
-    { enable_thinking: false, add_generation_prompt: true },
-  );
-  processor.image_processor.max_soft_tokens = preset.tokens;
-  // Gemma4Processor is (text, images, audio, options): null keeps options out of the audio slot.
-  const inputs = await processor(prompt, RawImage.fromCanvas(canvas), null, { add_special_tokens: false });
-  await model.generate({
-    ...inputs, max_new_tokens: preset.maxNew, do_sample: false,
-    streamer: new TextStreamer(processor.tokenizer, {
-      skip_prompt: true, skip_special_tokens: true,
-      callback_function: onChunk,
-    }),
-  });
+  const { data, width, height } = canvas.getContext("2d").getImageData(0, 0, canvas.width, canvas.height);
+  // Transfer the pixel buffer instead of copying it.
+  await call("analyze", { image: { data, width, height }, text, preset }, (kind, value) => {
+    if (kind === "chunk") onChunk?.(value);
+  }, [data.buffer]);
 }

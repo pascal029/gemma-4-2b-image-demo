@@ -3,6 +3,9 @@ export const MODEL_ID = "onnx-community/gemma-4-E2B-it-ONNX";
 export const DTYPE = "q4f16";
 export const PROMPT = "What is in this photo? Describe it briefly.";
 
+// Cache Storage name for the model files; the worker sets transformers.js `env.cacheKey` to this.
+export const CACHE_KEY = "transformers-cache";
+
 // Free storage needed to save the ~3.4 GB of model files.
 export const NEED_DISK = 4e9;
 

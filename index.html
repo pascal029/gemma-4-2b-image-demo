@@ -88,6 +88,21 @@
       color: var(--muted);
     }
 
+    .warning {
+      margin: 6px 0 0;
+      padding: 10px 12px;
+      border: 1px solid color-mix(in srgb, #e8590c 45%, transparent);
+      border-left-width: 4px;
+      border-radius: 10px;
+      background: color-mix(in srgb, #e8590c 10%, transparent);
+      font-size: 0.82rem;
+      line-height: 1.5;
+    }
+
+    .warning b {
+      color: #e8590c;
+    }
+
     .specs b {
       color: var(--text);
       font-weight: 600;
@@ -442,6 +457,11 @@
         <li><b>Disk</b> 4 GB free</li>
         <li><b>Camera</b> required</li>
       </ul>
+      <p class="warning" role="note">
+        <b>Heavy load:</b> loading the model briefly needs more memory than 8 GB of RAM comfortably has.
+        On an 8 GB device your whole computer may slow down or stutter until loading finishes.
+        Close other tabs and apps first.
+      </p>
     </header>
 
     <section class="card">

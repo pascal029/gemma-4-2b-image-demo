@@ -41,7 +41,10 @@ async function startModel(saveToCache) {
       saveToCache,
       onProgress: (progress) => {
         bar.value = progress.progress;
-        status(`Loading model… ${(progress.loaded / 1e9).toFixed(2)} / ${(progress.total / 1e9).toFixed(2)} GB`);
+        // After the last byte, ONNX Runtime still has to build the sessions and upload weights to the GPU.
+        status(progress.progress >= 100
+          ? "Download complete. Preparing the model on your GPU, this can take a minute…"
+          : `Loading model… ${(progress.loaded / 1e9).toFixed(2)} / ${(progress.total / 1e9).toFixed(2)} GB`);
       },
     });
     shotBtn.disabled = false;
