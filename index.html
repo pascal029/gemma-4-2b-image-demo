@@ -1,0 +1,485 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Gemma 4 Photo Analyzer</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+      --bg: #f6f6f4;
+      --card: #ffffff;
+      --text: #1c1c1e;
+      --muted: #6e6e73;
+      --line: #e5e5e2;
+      --accent: #3b5bdb;
+      --accent-text: #ffffff;
+      --radius: 18px;
+      font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #111113;
+        --card: #1b1b1e;
+        --text: #f2f2f3;
+        --muted: #9a9aa1;
+        --line: #2c2c31;
+        --accent: #7c93ff;
+        --accent-text: #0b0d1a;
+      }
+    }
+
+    [hidden] {
+      display: none !important;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100dvh;
+      background: var(--bg);
+      color: var(--text);
+      display: grid;
+      place-items: start center;
+      padding: 32px 16px;
+    }
+
+    main {
+      width: 100%;
+      max-width: 560px;
+      display: grid;
+      gap: 16px;
+    }
+
+    header {
+      display: grid;
+      gap: 6px;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 1.5rem;
+      font-weight: 650;
+      letter-spacing: -0.02em;
+    }
+
+    .badge {
+      justify-self: start;
+      font-size: 0.75rem;
+      color: var(--muted);
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      padding: 3px 10px;
+    }
+
+    .specs {
+      list-style: none;
+      margin: 4px 0 0;
+      padding: 0;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px 16px;
+      font-size: 0.8rem;
+      color: var(--muted);
+    }
+
+    .specs b {
+      color: var(--text);
+      font-weight: 600;
+      margin-right: 4px;
+    }
+
+    .card {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      padding: 12px;
+      display: grid;
+      gap: 12px;
+    }
+
+    .frame {
+      aspect-ratio: 4 / 3;
+      background: #000;
+      border-radius: calc(var(--radius) - 6px);
+      overflow: hidden;
+    }
+
+    video,
+    canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    #status {
+      margin: 0;
+      font-size: 0.9rem;
+      color: var(--muted);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    #status::before {
+      content: "";
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--accent);
+      flex: none;
+    }
+
+    progress {
+      width: 100%;
+      height: 6px;
+      appearance: none;
+      border: 0;
+      border-radius: 999px;
+      overflow: hidden;
+      background: var(--line);
+    }
+
+    progress::-webkit-progress-bar {
+      background: var(--line);
+    }
+
+    progress::-webkit-progress-value {
+      background: var(--accent);
+      border-radius: 999px;
+      transition: width .2s;
+    }
+
+    progress::-moz-progress-bar {
+      background: var(--accent);
+    }
+
+    .row {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .row>button {
+      flex: 1;
+    }
+
+    button {
+      font: inherit;
+      font-size: 0.95rem;
+      font-weight: 550;
+      min-height: 44px;
+      padding: 0 18px;
+      border-radius: 12px;
+      border: 1px solid var(--line);
+      background: transparent;
+      color: var(--text);
+      cursor: pointer;
+      transition: transform .1s, opacity .2s, background .2s;
+    }
+
+    button:hover:not(:disabled) {
+      background: color-mix(in srgb, var(--text) 6%, transparent);
+    }
+
+    button:active:not(:disabled) {
+      transform: scale(.98);
+    }
+
+    button:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
+    }
+
+    button:disabled {
+      opacity: .4;
+      cursor: not-allowed;
+    }
+
+    button.primary {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: var(--accent-text);
+    }
+
+    button.primary:hover:not(:disabled) {
+      background: color-mix(in srgb, var(--accent) 88%, var(--text));
+    }
+
+    button.link {
+      flex: none;
+      min-height: 0;
+      padding: 4px 0;
+      border: 0;
+      font-size: 0.8rem;
+      font-weight: 500;
+      color: var(--muted);
+      text-decoration: underline;
+      text-underline-offset: 3px;
+    }
+
+    button.link:hover:not(:disabled) {
+      background: none;
+      color: var(--text);
+    }
+
+    #answer {
+      margin: 0;
+      white-space: pre-wrap;
+      line-height: 1.6;
+    }
+
+    .card:has(#answer:empty) {
+      display: none;
+    }
+
+    footer {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.8rem;
+      color: var(--muted);
+    }
+
+    dialog {
+      width: min(420px, calc(100% - 32px));
+      background: var(--card);
+      color: var(--text);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      padding: 24px;
+    }
+
+    dialog::backdrop {
+      background: rgb(0 0 0 / .45);
+      backdrop-filter: blur(3px);
+    }
+
+    dialog h2 {
+      margin: 0 0 8px;
+      font-size: 1.15rem;
+    }
+
+    dialog p {
+      margin: 0 0 12px;
+      color: var(--muted);
+      line-height: 1.5;
+      font-size: 0.92rem;
+    }
+
+    dialog b {
+      color: var(--text);
+    }
+
+    dialog label {
+      display: flex;
+      gap: 10px;
+      align-items: flex-start;
+      padding: 12px;
+      margin-bottom: 16px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      font-size: 0.9rem;
+      cursor: pointer;
+    }
+
+    dialog input {
+      accent-color: var(--accent);
+      width: 18px;
+      height: 18px;
+      margin: 1px 0 0;
+      flex: none;
+    }
+  </style>
+</head>
+
+<body>
+  <main>
+    <header>
+      <h1>Gemma 4 Photo Analyzer</h1>
+      <span class="badge">On-device · WebGPU · nothing leaves your browser</span>
+      <ul class="specs" aria-label="Minimum requirements">
+        <li><b>Browser</b> Chrome / Edge 113+</li>
+        <li><b>RAM</b> 8 GB</li>
+        <li><b>Disk</b> 4 GB free</li>
+        <li><b>Camera</b> required</li>
+      </ul>
+    </header>
+
+    <section class="card">
+      <div class="frame">
+        <video id="video" autoplay playsinline muted></video>
+        <canvas id="canvas" hidden></canvas>
+      </div>
+
+      <p id="status" role="status">Checking WebGPU…</p>
+      <progress id="bar" max="100" value="0" hidden></progress>
+
+      <div class="row">
+        <button id="downloadBtn" class="primary" hidden>Download model</button>
+        <button id="shotBtn" class="primary" disabled>Take photo</button>
+        <button id="retakeBtn" hidden>Retake</button>
+      </div>
+    </section>
+
+    <section class="card" aria-live="polite">
+      <p id="answer"></p>
+    </section>
+
+    <footer>
+      <span>google/gemma-4-E2B-it</span>
+      <button id="deleteBtn" class="link" hidden>Delete saved model</button>
+    </footer>
+  </main>
+
+  <dialog id="modal">
+    <h2>Download model?</h2>
+    <p>This will download <b>google/gemma-4-E2B-it</b> (about <b>3.2 GB</b>).
+      It runs entirely on your device, and your photos are never uploaded.</p>
+    <p>Use Wi-Fi and make sure you have about 4 GB of free disk space.</p>
+    <label><input type="checkbox" id="storeChk" checked> Save the model in this browser so it doesn't download again
+      next time</label>
+    <form method="dialog" class="row">
+      <button value="cancel">Cancel</button>
+      <button value="ok" class="primary">Download</button>
+    </form>
+  </dialog>
+
+  <script type="module">
+    import {
+      AutoProcessor, Gemma4ForConditionalGeneration, TextStreamer, RawImage, env,
+    } from "https://cdn.jsdelivr.net/npm/@huggingface/transformers@4.3.0";
+
+    // Browser (ONNX) build of google/gemma-4-E2B-it; the google repo is PyTorch-only.
+    const MODEL_ID = "onnx-community/gemma-4-E2B-it-ONNX";
+    const DTYPE = "q4f16";
+    const PROMPT = "What is in this photo? Describe it briefly.";
+
+    const $ = (id) => document.getElementById(id);
+    const status = (t) => ($("status").textContent = t);
+    let processor, model;
+
+    // 1. WebGPU + camera
+    if (!(await navigator.gpu?.requestAdapter())) {
+      status("WebGPU is not supported here. Use a recent Chrome or Edge.");
+      throw new Error("no webgpu");
+    }
+    status("Please allow camera access…");
+    try {
+      $("video").srcObject = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: "environment" }, audio: false,
+      });
+    } catch (e) {
+      status(`Camera access denied or unavailable: ${e.message}`);
+      throw e;
+    }
+
+    // 2. Already downloaded?
+    async function isCached() {
+      try {
+        const keys = await (await caches.open(env.cacheKey)).keys();
+        return keys.some((r) => r.url.includes(MODEL_ID) && r.url.includes(`decoder_model_merged_${DTYPE}.onnx_data`));
+      } catch { return false; }
+    }
+
+    async function loadModel() {
+      $("downloadBtn").hidden = true;
+      $("bar").hidden = false;
+      try {
+        const progress_callback = (p) => {
+          if (p.status === "progress_total") {
+            $("bar").value = p.progress;
+            status(`Loading model… ${(p.loaded / 1e9).toFixed(2)} / ${(p.total / 1e9).toFixed(2)} GB`);
+          }
+        };
+        processor = await AutoProcessor.from_pretrained(MODEL_ID);
+        model = await Gemma4ForConditionalGeneration.from_pretrained(MODEL_ID, {
+          dtype: DTYPE, device: "webgpu", progress_callback,
+        });
+        $("bar").hidden = true;
+        $("shotBtn").disabled = false;
+        status("Model ready. Point the camera at something and take a photo.");
+      } catch (e) {
+        $("bar").hidden = true;
+        $("downloadBtn").hidden = false;
+        status(`Failed to load the model: ${e.message}`);
+      }
+    }
+
+    if (await isCached()) {
+      status("Model found in cache. Loading…");
+      $("deleteBtn").hidden = false;
+      loadModel();
+    } else {
+      status("Camera ready. Download the model to start.");
+      $("downloadBtn").hidden = false;
+    }
+
+    $("downloadBtn").onclick = () => $("modal").showModal();
+    $("modal").onclose = async () => {
+      if ($("modal").returnValue !== "ok") return;
+      // Unchecked: download into memory only, nothing is written to Cache Storage.
+      env.useBrowserCache = $("storeChk").checked;
+      await loadModel();
+      $("deleteBtn").hidden = !(await isCached());
+    };
+
+    $("deleteBtn").onclick = async () => {
+      if (!confirm("Delete the saved model (~3.2 GB) from this browser? You'll need to download it again next visit.")) return;
+      await caches.delete(env.cacheKey);
+      $("deleteBtn").hidden = true;
+      status(model
+        ? "Saved model deleted. It still works until you close or reload this page."
+        : "Saved model deleted.");
+    };
+
+    // 3. Take photo  4. Analyze
+    $("shotBtn").onclick = async () => {
+      const video = $("video"), canvas = $("canvas");
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      canvas.getContext("2d").drawImage(video, 0, 0);
+      video.hidden = true;
+      canvas.hidden = false;
+      $("shotBtn").disabled = true;
+      $("retakeBtn").hidden = true;
+      $("answer").textContent = "";
+      status("Analyzing…");
+
+      //Runs on the main thread; move to a Web Worker if the UI stutters.
+      try {
+        const prompt = processor.apply_chat_template(
+          [{ role: "user", content: [{ type: "image" }, { type: "text", text: PROMPT }] }],
+          { enable_thinking: false, add_generation_prompt: true },
+        );
+        const inputs = await processor(prompt, RawImage.fromCanvas(canvas), null, { add_special_tokens: false });
+        await model.generate({
+          ...inputs, max_new_tokens: 256, do_sample: false,
+          streamer: new TextStreamer(processor.tokenizer, {
+            skip_prompt: true, skip_special_tokens: true,
+            callback_function: (t) => ($("answer").textContent += t),
+          }),
+        });
+        status("Done.");
+      } catch (e) {
+        status(`Analysis failed: ${e.message}`);
+      }
+      $("retakeBtn").hidden = false;
+    };
+
+    $("retakeBtn").onclick = () => {
+      $("video").hidden = false; $("canvas").hidden = true;
+      $("retakeBtn").hidden = true; $("shotBtn").disabled = false;
+      $("answer").textContent = "";
+      status("Model ready. Point the camera at something and take a photo.");
+    };
+  </script>
+</body>
+
+</html>
