@@ -1,6 +1,7 @@
 export async function startCamera(video) {
   video.srcObject = await navigator.mediaDevices.getUserMedia({
-    video: { facingMode: "environment" }, audio: false,
+    video: { facingMode: "environment" },
+    audio: false,
   });
 }
 

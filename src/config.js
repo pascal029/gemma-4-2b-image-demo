@@ -6,6 +6,9 @@ export const PROMPT = "What is in this photo? Describe it briefly.";
 // Cache Storage name for the model files; the worker sets transformers.js `env.cacheKey` to this.
 export const CACHE_KEY = "transformers-cache";
 
+// Gemma's recommended sampling settings. do_sample must be true or the others are ignored.
+export const SAMPLING = { do_sample: true, temperature: 1.0, top_p: 0.95, top_k: 64 };
+
 // Free storage needed to save the ~3.4 GB of model files.
 export const NEED_DISK = 4e9;
 
