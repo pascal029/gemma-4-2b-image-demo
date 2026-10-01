@@ -1,0 +1,16 @@
+# Gemma 4 Photo Analyzer
+
+> A free browser app that describes photos from your camera using Google's Gemma 4 E2B vision-language model (google/gemma-4-E2B-it), running entirely on-device with WebGPU via Transformers.js. No server, no API key; photos never leave the device.
+
+## How it works
+- Allow camera access, confirm the ~3.2 GB model download (optionally saved in the browser cache), take a photo, edit the prompt, press Analyze.
+- Performance presets (Low / Balanced / High) trade image detail (70 / 140 / 280 image tokens) and answer length (128 / 256 / 512 tokens).
+- Sampling: temperature 1.0, top_p 0.95, top_k 64.
+
+## Requirements
+- Chrome or Edge 113+ with WebGPU and shader-f16, a camera, ~8 GB RAM (16 GB+ is smoother), ~4 GB free storage.
+
+## Links
+- App: https://gemma4-photo-analyzer.netlify.app/
+- Source: https://github.com/pascal029/gemma-4-2b-image-demo
+- Model: https://huggingface.co/onnx-community/gemma-4-E2B-it-ONNX

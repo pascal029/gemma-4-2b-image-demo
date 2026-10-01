@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://gemma4-photo-analyzer.netlify.app/sitemap.xml

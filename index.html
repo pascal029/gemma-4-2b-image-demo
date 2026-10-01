@@ -4,7 +4,61 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Gemma 4 Photo Analyzer</title>
+  <title>Gemma 4 Photo Analyzer – Private On-Device AI Image Description</title>
+  <meta name="description"
+    content="Take a photo and get an AI description from Google's Gemma 4 E2B, running entirely in your browser with WebGPU. No server, no API key, photos never leave your device.">
+  <meta name="google-site-verification" content="_VYXt0_k7zAqIl-7e3Oya76ItszWK01eLffgnbl3VXI" />
+  <meta name="robots" content="index, follow, max-image-preview:large">
+  <meta name="author" content="pascal029">
+  <meta name="theme-color" content="#3b5bdb">
+  <link rel="canonical" href="https://gemma4-photo-analyzer.netlify.app/">
+
+  <!-- Social previews -->
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Gemma 4 Photo Analyzer">
+  <meta property="og:title" content="Gemma 4 Photo Analyzer – Private On-Device AI Image Description">
+  <meta property="og:description"
+    content="Describe any photo with Gemma 4 E2B, running 100% in your browser on WebGPU. Nothing is uploaded.">
+  <meta property="og:url" content="https://gemma4-photo-analyzer.netlify.app/">
+  <meta property="og:locale" content="en_US">
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:title" content="Gemma 4 Photo Analyzer">
+  <meta name="twitter:description"
+    content="Describe any photo with Gemma 4 E2B, running 100% in your browser on WebGPU. Nothing is uploaded.">
+
+  <!-- Structured data for search and answer engines -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "WebApplication",
+    "@id": "https://gemma4-photo-analyzer.netlify.app/#app",
+    "name": "Gemma 4 Photo Analyzer",
+    "url": "https://gemma4-photo-analyzer.netlify.app/",
+    "description": "A browser app that describes photos from your camera using Google's Gemma 4 E2B vision-language model, running fully on-device with WebGPU.",
+    "applicationCategory": "MultimediaApplication",
+    "operatingSystem": "Any (requires Chrome or Edge 113+ with WebGPU)",
+    "browserRequirements": "Requires WebGPU with shader-f16, a camera, about 8 GB RAM and 4 GB free storage.",
+    "isAccessibleForFree": true,
+    "offers": {
+      "@type": "Offer",
+      "price": "0",
+      "priceCurrency": "USD"
+    },
+    "featureList": [
+      "Runs Gemma 4 E2B entirely in the browser",
+      "No server, no API key, photos never uploaded",
+      "Editable prompt before analysis",
+      "Low, Balanced and High performance presets",
+      "Optional saving of the model in the browser cache"
+    ],
+    "author": {
+      "@type": "Person",
+      "name": "pascal029",
+      "url": "https://github.com/pascal029"
+    },
+    "codeRepository": "https://github.com/pascal029/gemma-4-2b-image-demo"
+  }
+  </script>
   <style>
     :root {
       color-scheme: light dark;
