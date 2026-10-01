@@ -24,4 +24,4 @@ Open http://localhost:5173.
 ## Notes
 - The page loads [`onnx-community/gemma-4-E2B-it-ONNX`](https://huggingface.co/onnx-community/gemma-4-E2B-it-ONNX), a browser-ready conversion of `google/gemma-4-E2B-it`. Inference runs through [Transformers.js](https://github.com/huggingface/transformers.js) on WebGPU.
 - The saved model is tied to the page's address and port. Opening the page from a different address downloads it again.
-- The whole app is one file: `index.html`.
+- `index.html` holds the markup and styles; `index.js` wires the UI to the modules in `src/` (`config`, `dom`, `camera`, `model`, `settings`, `requirements`).
