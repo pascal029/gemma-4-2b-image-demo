@@ -212,6 +212,21 @@
       background: color-mix(in srgb, var(--accent) 88%, var(--text));
     }
 
+    .prompt { display: grid; gap: 6px; }
+    .prompt label { font-size: 0.8rem; font-weight: 600; color: var(--muted); }
+    .prompt textarea {
+      font: inherit;
+      font-size: 0.95rem;
+      line-height: 1.5;
+      padding: 10px 12px;
+      border-radius: 12px;
+      border: 1px solid var(--line);
+      background: var(--bg);
+      color: var(--text);
+      resize: vertical;
+    }
+    .prompt textarea:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
     button.link {
       flex: none;
       min-height: 0;
@@ -321,10 +336,16 @@
       <p id="status" role="status">Checking WebGPU…</p>
       <progress id="bar" max="100" value="0" hidden></progress>
 
+      <div id="promptBox" class="prompt" hidden>
+        <label for="promptInput">Prompt</label>
+        <textarea id="promptInput" rows="3"></textarea>
+      </div>
+
       <div class="row">
         <button id="downloadBtn" class="primary" hidden>Download model</button>
         <button id="shotBtn" class="primary" disabled>Take photo</button>
         <button id="retakeBtn" hidden>Retake</button>
+        <button id="analyzeBtn" class="primary" hidden>Analyze</button>
       </div>
     </section>
 
@@ -439,26 +460,43 @@
         : "Saved model deleted.");
     };
 
-    // 3. Take photo  4. Analyze
-    $("shotBtn").onclick = async () => {
+    // 3. Take photo: freeze the frame, then let the user edit the prompt
+    $("promptInput").value = PROMPT;
+
+    $("shotBtn").onclick = () => {
       const video = $("video"), canvas = $("canvas");
       canvas.width = video.videoWidth;
       canvas.height = video.videoHeight;
       canvas.getContext("2d").drawImage(video, 0, 0);
       video.hidden = true;
       canvas.hidden = false;
-      $("shotBtn").disabled = true;
-      $("retakeBtn").hidden = true;
+      $("shotBtn").hidden = true;
+      $("promptBox").hidden = false;
+      $("retakeBtn").hidden = false;
+      $("analyzeBtn").hidden = false;
+      $("answer").textContent = "";
+      status("Edit the prompt if you like, then press Analyze.");
+      $("promptInput").focus();
+    };
+
+    // 4. Analyze the frozen photo with the user's prompt
+    const busy = (on) => {
+      $("analyzeBtn").disabled = $("retakeBtn").disabled = $("promptInput").disabled = on;
+    };
+
+    $("analyzeBtn").onclick = async () => {
+      const text = $("promptInput").value.trim() || PROMPT;
+      busy(true);
       $("answer").textContent = "";
       status("Analyzing…");
 
       //Runs on the main thread; move to a Web Worker if the UI stutters.
       try {
         const prompt = processor.apply_chat_template(
-          [{ role: "user", content: [{ type: "image" }, { type: "text", text: PROMPT }] }],
+          [{ role: "user", content: [{ type: "image" }, { type: "text", text }] }],
           { enable_thinking: false, add_generation_prompt: true },
         );
-        const inputs = await processor(prompt, RawImage.fromCanvas(canvas), null, { add_special_tokens: false });
+        const inputs = await processor(prompt, RawImage.fromCanvas($("canvas")), null, { add_special_tokens: false });
         await model.generate({
           ...inputs, max_new_tokens: 256, do_sample: false,
           streamer: new TextStreamer(processor.tokenizer, {
@@ -466,16 +504,17 @@
             callback_function: (t) => ($("answer").textContent += t),
           }),
         });
-        status("Done.");
+        status("Done. Change the prompt to ask something else, or retake.");
       } catch (e) {
         status(`Analysis failed: ${e.message}`);
       }
-      $("retakeBtn").hidden = false;
+      busy(false);
     };
 
     $("retakeBtn").onclick = () => {
       $("video").hidden = false; $("canvas").hidden = true;
-      $("retakeBtn").hidden = true; $("shotBtn").disabled = false;
+      $("promptBox").hidden = true; $("analyzeBtn").hidden = true; $("retakeBtn").hidden = true;
+      $("shotBtn").hidden = false; $("shotBtn").disabled = false;
       $("answer").textContent = "";
       status("Model ready. Point the camera at something and take a photo.");
     };
