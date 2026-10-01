@@ -212,8 +212,17 @@
       background: color-mix(in srgb, var(--accent) 88%, var(--text));
     }
 
-    .prompt { display: grid; gap: 6px; }
-    .prompt label { font-size: 0.8rem; font-weight: 600; color: var(--muted); }
+    .prompt {
+      display: grid;
+      gap: 6px;
+    }
+
+    .prompt label {
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: var(--muted);
+    }
+
     .prompt textarea {
       font: inherit;
       font-size: 0.95rem;
@@ -225,7 +234,11 @@
       color: var(--text);
       resize: vertical;
     }
-    .prompt textarea:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+    .prompt textarea:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 1px;
+    }
 
     button.link {
       flex: none;
@@ -311,6 +324,110 @@
       margin: 1px 0 0;
       flex: none;
     }
+
+    .perf {
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 10px 12px;
+      margin: 0 0 16px;
+      display: grid;
+      gap: 8px;
+    }
+
+    .perf legend {
+      padding: 0 4px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: var(--muted);
+    }
+
+    .perf-opts {
+      display: flex;
+      gap: 6px;
+    }
+
+    .perf .perf-opts label {
+      flex: 1;
+      margin: 0;
+      padding: 8px 0;
+      justify-content: center;
+      align-items: center;
+      gap: 6px;
+      display: flex;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      font-size: 0.9rem;
+      cursor: pointer;
+    }
+
+    .perf .perf-opts label:has(input:checked) {
+      border-color: var(--accent);
+      background: color-mix(in srgb, var(--accent) 12%, transparent);
+    }
+
+    .perf input {
+      margin: 0;
+      width: 16px;
+      height: 16px;
+      accent-color: var(--accent);
+    }
+
+    .perf small {
+      font-size: 0.78rem;
+      color: var(--muted);
+      line-height: 1.4;
+    }
+
+    .prompt .perf {
+      margin: 0;
+    }
+
+    .reqs {
+      list-style: none;
+      margin: 0 0 16px;
+      padding: 0;
+      display: grid;
+      gap: 6px;
+      font-size: 0.88rem;
+    }
+
+    .reqs li {
+      display: grid;
+      grid-template-columns: 20px 1fr;
+      gap: 4px 8px;
+    }
+
+    .reqs .icon {
+      font-weight: 700;
+      text-align: center;
+    }
+
+    .reqs .ok {
+      color: #2f9e44;
+    }
+
+    .reqs .warn {
+      color: #e8590c;
+    }
+
+    .reqs .fail {
+      color: #e03131;
+    }
+
+    .reqs small {
+      grid-column: 2;
+      color: var(--muted);
+      font-size: 0.78rem;
+    }
+
+    .reqs-note {
+      font-size: 0.85rem;
+      margin: 0 0 12px;
+    }
+
+    .reqs-note.fail {
+      color: #e03131;
+    }
   </style>
 </head>
 
@@ -339,6 +456,7 @@
       <div id="promptBox" class="prompt" hidden>
         <label for="promptInput">Prompt</label>
         <textarea id="promptInput" rows="3"></textarea>
+        <fieldset class="perf" id="perfMain"></fieldset>
       </div>
 
       <div class="row">
@@ -363,12 +481,16 @@
     <h2>Download model?</h2>
     <p>This will download <b>google/gemma-4-E2B-it</b> (about <b>3.2 GB</b>).
       It runs entirely on your device, and your photos are never uploaded.</p>
-    <p>Use Wi-Fi and make sure you have about 4 GB of free disk space.</p>
+    <ul class="reqs" id="reqList" aria-label="Requirement check">
+      <li>Checking your device…</li>
+    </ul>
+    <p class="reqs-note" id="reqNote"></p>
+    <fieldset class="perf" id="perfModal"></fieldset>
     <label><input type="checkbox" id="storeChk" checked> Save the model in this browser so it doesn't download again
       next time</label>
     <form method="dialog" class="row">
       <button value="cancel">Cancel</button>
-      <button value="ok" class="primary">Download</button>
+      <button value="ok" class="primary" id="confirmBtn" disabled>Download</button>
     </form>
   </dialog>
 
@@ -382,9 +504,108 @@
     const DTYPE = "q4f16";
     const PROMPT = "What is in this photo? Describe it briefly.";
 
-    const $ = (id) => document.getElementById(id);
-    const status = (t) => ($("status").textContent = t);
-    let processor, model;
+    const byId = (id) => document.getElementById(id);
+    const video = byId("video");
+    const canvas = byId("canvas");
+    const statusText = byId("status");
+    const bar = byId("bar");
+    const promptBox = byId("promptBox");
+    const promptInput = byId("promptInput");
+    const perfMain = byId("perfMain");
+    const downloadBtn = byId("downloadBtn");
+    const shotBtn = byId("shotBtn");
+    const retakeBtn = byId("retakeBtn");
+    const analyzeBtn = byId("analyzeBtn");
+    const answer = byId("answer");
+    const deleteBtn = byId("deleteBtn");
+    const modal = byId("modal");
+    const reqList = byId("reqList");
+    const reqNote = byId("reqNote");
+    const perfModal = byId("perfModal");
+    const storeChk = byId("storeChk");
+    const confirmBtn = byId("confirmBtn");
+    const status = (text) => (statusText.textContent = text);
+    let processor, model, loadedPower;
+
+    // Browsers can't cap GPU %, so presets trade the knobs that actually drive GPU load.
+    const PRESETS = {
+      low: { label: "Low", power: "low-power", tokens: 70, maxNew: 128 },
+      balanced: { label: "Balanced", power: undefined, tokens: 140, maxNew: 256 },
+      high: { label: "High", power: "high-performance", tokens: 280, maxNew: 512 },
+    };
+    let perf = "balanced";
+    try { const saved = localStorage.getItem("perf"); if (saved in PRESETS) perf = saved; } catch { }
+
+    function mountPerf(el, name) {
+      el.innerHTML = `<legend>Performance</legend><div class="perf-opts">${Object.entries(PRESETS)
+        .map(([key, preset]) => `<label><input type="radio" name="${name}" value="${key}"> ${preset.label}</label>`)
+        .join("")}</div><small></small>`;
+      el.onchange = (event) => setPerf(event.target.value);
+    }
+
+    function setPerf(key) {
+      perf = key;
+      try { localStorage.setItem("perf", key); } catch { }
+      const preset = PRESETS[key];
+      const hint = `${preset.power ?? "default"} GPU · image detail ${preset.tokens} tokens · answers up to ${preset.maxNew} tokens`
+        + (model && preset.power !== loadedPower ? " · GPU preference applies after reload" : "");
+      for (const fieldset of document.querySelectorAll(".perf")) {
+        fieldset.querySelector(`input[value="${key}"]`).checked = true;
+        fieldset.querySelector("small").textContent = hint;
+      }
+      if (modal.open) refreshReqs();
+    }
+
+    mountPerf(perfModal, "perfModal");
+    mountPerf(perfMain, "perfMain");
+    setPerf(perf);
+
+    // Minimum requirements. hard: blocks download/load; soft: warning only.
+    const NEED_DISK = 4e9;
+    const gb = (bytes) => `${(bytes / 1e9).toFixed(1)} GB`;
+
+    async function checkRequirements({ needDisk }) {
+      const adapter = await navigator.gpu?.requestAdapter({ powerPreference: PRESETS[perf].power });
+      const res = [{ name: "WebGPU", hard: true, ok: !!adapter, detail: adapter ? "Available" : "Not available in this browser" }];
+      if (adapter) {
+        const f16 = adapter.features.has("shader-f16");
+        res.push({ name: "GPU 16-bit support", hard: true, ok: f16, detail: f16 ? "shader-f16 supported" : "shader-f16 missing, required by this model" });
+        const buf = adapter.limits.maxBufferSize;
+        res.push({ name: "GPU buffer limit", hard: false, ok: buf >= 1e9, detail: `${gb(buf)} (1 GB+ recommended)` });
+      }
+      const mem = navigator.deviceMemory; // Chrome-only, capped at 8, randomized by Brave
+      res.push({
+        name: "Memory", hard: false, ok: mem === undefined ? null : mem >= 8,
+        detail: mem === undefined ? "Not reported by this browser (8 GB recommended)" : `Browser reports ~${mem} GB (8 GB recommended; may be approximate)`,
+      });
+      if (needDisk) {
+        const { quota = 0, usage = 0 } = (await navigator.storage?.estimate?.()) ?? {};
+        // Brave always reports a fixed 2 GiB quota (anti-fingerprinting), not the real free space.
+        const fake = !!navigator.brave || quota === 2 ** 31;
+        res.push(fake
+          ? { name: "Free storage", hard: false, ok: null, detail: `Your browser hides free space, so it can't be checked (${gb(NEED_DISK)} needed)` }
+          : { name: "Free storage", hard: true, ok: quota - usage >= NEED_DISK, detail: `${gb(quota - usage)} available to this site (${gb(NEED_DISK)} needed)` });
+      }
+      res.push({ name: "Camera", hard: true, ok: !!video.srcObject, detail: "Connected" });
+      return { res, blocked: res.some((req) => req.hard && req.ok === false) };
+    }
+
+    function renderReqs({ res }) {
+      reqList.innerHTML = res.map((req) => {
+        const [cls, icon] = req.ok ? ["ok", "✓"] : req.hard && req.ok === false ? ["fail", "✕"] : ["warn", "!"];
+        return `<li><span class="icon ${cls}">${icon}</span><span>${req.name}</span><small>${req.detail}</small></li>`;
+      }).join("");
+    }
+
+    async function refreshReqs() {
+      const check = await checkRequirements({ needDisk: storeChk.checked });
+      renderReqs(check);
+      confirmBtn.disabled = check.blocked;
+      reqNote.className = `reqs-note${check.blocked ? " fail" : ""}`;
+      reqNote.textContent = check.blocked
+        ? "Your device doesn't meet the minimum requirements above."
+        : "Use Wi-Fi. Warnings won't block the download, but the model may run slowly or fail.";
+    }
 
     // 1. WebGPU + camera
     if (!(await navigator.gpu?.requestAdapter())) {
@@ -393,11 +614,11 @@
     }
     status("Please allow camera access…");
     try {
-      $("video").srcObject = await navigator.mediaDevices.getUserMedia({
+      video.srcObject = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: "environment" }, audio: false,
       });
-    } catch (e) {
-      status(`Camera access denied or unavailable: ${e.message}`);
+    } catch (error) {
+      status(`Camera access denied or unavailable: ${error.message}`);
       throw e;
     }
 
@@ -405,89 +626,101 @@
     async function isCached() {
       try {
         const keys = await (await caches.open(env.cacheKey)).keys();
-        return keys.some((r) => r.url.includes(MODEL_ID) && r.url.includes(`decoder_model_merged_${DTYPE}.onnx_data`));
+        return keys.some((request) => request.url.includes(MODEL_ID) && request.url.includes(`decoder_model_merged_${DTYPE}.onnx_data`));
       } catch { return false; }
     }
 
     async function loadModel() {
-      $("downloadBtn").hidden = true;
-      $("bar").hidden = false;
+      downloadBtn.hidden = true;
+      bar.hidden = false;
       try {
-        const progress_callback = (p) => {
-          if (p.status === "progress_total") {
-            $("bar").value = p.progress;
-            status(`Loading model… ${(p.loaded / 1e9).toFixed(2)} / ${(p.total / 1e9).toFixed(2)} GB`);
+        const progress_callback = (progress) => {
+          if (progress.status === "progress_total") {
+            bar.value = progress.progress;
+            status(`Loading model… ${(progress.loaded / 1e9).toFixed(2)} / ${(progress.total / 1e9).toFixed(2)} GB`);
           }
         };
+        loadedPower = PRESETS[perf].power;
+        env.backends.onnx.webgpu.powerPreference = loadedPower;
         processor = await AutoProcessor.from_pretrained(MODEL_ID);
         model = await Gemma4ForConditionalGeneration.from_pretrained(MODEL_ID, {
           dtype: DTYPE, device: "webgpu", progress_callback,
         });
-        $("bar").hidden = true;
-        $("shotBtn").disabled = false;
+        bar.hidden = true;
+        shotBtn.disabled = false;
         status("Model ready. Point the camera at something and take a photo.");
-      } catch (e) {
-        $("bar").hidden = true;
-        $("downloadBtn").hidden = false;
-        status(`Failed to load the model: ${e.message}`);
+      } catch (error) {
+        bar.hidden = true;
+        downloadBtn.hidden = false;
+        status(`Failed to load the model: ${error.message}`);
       }
     }
 
     if (await isCached()) {
-      status("Model found in cache. Loading…");
-      $("deleteBtn").hidden = false;
-      loadModel();
+      deleteBtn.hidden = false;
+      const check = await checkRequirements({ needDisk: false });
+      const failed = check.res.filter((req) => req.hard && req.ok === false).map((req) => req.name);
+      if (failed.length) {
+        status(`Can't load the model, minimum requirements not met: ${failed.join(", ")}.`);
+      } else {
+        status("Model found in cache. Loading…");
+        loadModel();
+      }
     } else {
       status("Camera ready. Download the model to start.");
-      $("downloadBtn").hidden = false;
+      downloadBtn.hidden = false;
     }
 
-    $("downloadBtn").onclick = () => $("modal").showModal();
-    $("modal").onclose = async () => {
-      if ($("modal").returnValue !== "ok") return;
+    downloadBtn.onclick = () => {
+      confirmBtn.disabled = true;
+      modal.showModal();
+      refreshReqs();
+    };
+    storeChk.onchange = refreshReqs;
+    modal.onclose = async () => {
+      if (modal.returnValue !== "ok") return;
       // Unchecked: download into memory only, nothing is written to Cache Storage.
-      env.useBrowserCache = $("storeChk").checked;
+      env.useBrowserCache = storeChk.checked;
       await loadModel();
-      $("deleteBtn").hidden = !(await isCached());
+      deleteBtn.hidden = !(await isCached());
     };
 
-    $("deleteBtn").onclick = async () => {
+    deleteBtn.onclick = async () => {
       if (!confirm("Delete the saved model (~3.2 GB) from this browser? You'll need to download it again next visit.")) return;
       await caches.delete(env.cacheKey);
-      $("deleteBtn").hidden = true;
+      deleteBtn.hidden = true;
       status(model
         ? "Saved model deleted. It still works until you close or reload this page."
         : "Saved model deleted.");
     };
 
     // 3. Take photo: freeze the frame, then let the user edit the prompt
-    $("promptInput").value = PROMPT;
+    promptInput.value = PROMPT;
 
-    $("shotBtn").onclick = () => {
-      const video = $("video"), canvas = $("canvas");
+    shotBtn.onclick = () => {
       canvas.width = video.videoWidth;
       canvas.height = video.videoHeight;
       canvas.getContext("2d").drawImage(video, 0, 0);
       video.hidden = true;
       canvas.hidden = false;
-      $("shotBtn").hidden = true;
-      $("promptBox").hidden = false;
-      $("retakeBtn").hidden = false;
-      $("analyzeBtn").hidden = false;
-      $("answer").textContent = "";
+      shotBtn.hidden = true;
+      promptBox.hidden = false;
+      retakeBtn.hidden = false;
+      analyzeBtn.hidden = false;
+      answer.textContent = "";
       status("Edit the prompt if you like, then press Analyze.");
-      $("promptInput").focus();
+      promptInput.focus();
     };
 
     // 4. Analyze the frozen photo with the user's prompt
     const busy = (on) => {
-      $("analyzeBtn").disabled = $("retakeBtn").disabled = $("promptInput").disabled = on;
+      analyzeBtn.disabled = retakeBtn.disabled = promptInput.disabled = perfMain.disabled = on;
     };
 
-    $("analyzeBtn").onclick = async () => {
-      const text = $("promptInput").value.trim() || PROMPT;
+    analyzeBtn.onclick = async () => {
+      const text = promptInput.value.trim() || PROMPT;
       busy(true);
-      $("answer").textContent = "";
+      answer.textContent = "";
       status("Analyzing…");
 
       //Runs on the main thread; move to a Web Worker if the UI stutters.
@@ -496,26 +729,27 @@
           [{ role: "user", content: [{ type: "image" }, { type: "text", text }] }],
           { enable_thinking: false, add_generation_prompt: true },
         );
-        const inputs = await processor(prompt, RawImage.fromCanvas($("canvas")), null, { add_special_tokens: false });
+        processor.image_processor.max_soft_tokens = PRESETS[perf].tokens;
+        const inputs = await processor(prompt, RawImage.fromCanvas(canvas), null, { add_special_tokens: false });
         await model.generate({
-          ...inputs, max_new_tokens: 256, do_sample: false,
+          ...inputs, max_new_tokens: PRESETS[perf].maxNew, do_sample: false,
           streamer: new TextStreamer(processor.tokenizer, {
             skip_prompt: true, skip_special_tokens: true,
-            callback_function: (t) => ($("answer").textContent += t),
+            callback_function: (chunk) => (answer.textContent += chunk),
           }),
         });
         status("Done. Change the prompt to ask something else, or retake.");
-      } catch (e) {
-        status(`Analysis failed: ${e.message}`);
+      } catch (error) {
+        status(`Analysis failed: ${error.message}`);
       }
       busy(false);
     };
 
-    $("retakeBtn").onclick = () => {
-      $("video").hidden = false; $("canvas").hidden = true;
-      $("promptBox").hidden = true; $("analyzeBtn").hidden = true; $("retakeBtn").hidden = true;
-      $("shotBtn").hidden = false; $("shotBtn").disabled = false;
-      $("answer").textContent = "";
+    retakeBtn.onclick = () => {
+      video.hidden = false; canvas.hidden = true;
+      promptBox.hidden = true; analyzeBtn.hidden = true; retakeBtn.hidden = true;
+      shotBtn.hidden = false; shotBtn.disabled = false;
+      answer.textContent = "";
       status("Model ready. Point the camera at something and take a photo.");
     };
   </script>
